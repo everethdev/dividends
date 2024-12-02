@@ -72,7 +72,7 @@ const [iterationsUntilProcessed, setIterationsUntilProcessed] = useState<string 
 const [totalDividends, setTotalDividends] = useState<number | null>(null);
 const [nextClaimTime, setNextClaimTime] = useState<string | null>(null);
 const [secondsUntilAutoClaim, setSecondsUntilAutoClaim] = useState<string | null>(null);
-const [totalDividendsDistributed, setTotalDividendsDistributed] = useState<number | null>(null);
+const [totalDividendsDistributed, setTotalDividendsDistributed] = useState(0);
 const [ethPrice, setEthPrice] = useState<number | null>(null);
 const [holderPosition, setHolderPosition] = useState<number | null>(null);
 const [rewardsHistory, setRewardsHistory] = useState<any[]>([]);
@@ -87,6 +87,7 @@ const [lastClaimTime, setLastClaimTime] = useState<Date | null>(null);
 const [withdrawableDividends, setWithdrawableDividends] = useState(0);
 const [timeUntilEligibleForClaim, setTimeUntilEligibleForClaim] = useState(0);
 const [nextDividendPaymentEstimate, setNextDividendPaymentEstimate] = useState(0);
+
 
 
   useEffect(() => {
@@ -126,9 +127,6 @@ const [nextDividendPaymentEstimate, setNextDividendPaymentEstimate] = useState(0
     const fetchedTotalDividends = await fetchTotalDividends(EverETHTokenAddress, userAddress?.toString() ?? '');
     setTotalDividends(fetchedTotalDividends);
 
-     // Fetch total dividends distributed
-     const fetchedTotalDividendsDistributed = await fetchTotalDividendsDistributed(EverETHTokenAddress);
-     setTotalDividendsDistributed(fetchedTotalDividendsDistributed);
 
     // Fetch rewards history
     const rewardsData = await fetchRewardsHistory(userAddress?.toString() ?? '');
@@ -164,6 +162,33 @@ const [nextDividendPaymentEstimate, setNextDividendPaymentEstimate] = useState(0
     
     fetchData();
   }, [userAddress]);
+
+  useEffect(() => {
+    const fetchTotalDividends = async () => {
+      if (isClient) {
+        try {
+          const provider = new Web3Provider(window.ethereum);
+          const tokenContract = new Contract(
+            EverETHDividendTrackerAddress, 
+            EverETHDividendTrackerABI, 
+            provider
+          );
+          const totalDividends = await tokenContract.totalDividendsDistributed();
+          // Convert from wei to EETH (18 decimals)
+          const formattedTotal = parseFloat(formatUnits(totalDividends.toString(), 18));
+          setTotalDividendsDistributed(formattedTotal);
+        } catch (error) {
+          console.error('Error fetching total dividends:', error);
+          setTotalDividendsDistributed(0);
+        }
+      }
+    };
+
+    fetchTotalDividends();
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchTotalDividends, 300000);
+    return () => clearInterval(interval);
+  }, []);
 
 
   useEffect(() => {
@@ -864,15 +889,15 @@ const [nextDividendPaymentEstimate, setNextDividendPaymentEstimate] = useState(0
     <div className="flex items-center">
       <img src="/icon.png" alt="EETH" className="w-8 h-8 mr-2" />
       <span className="text-5xl font-bold mr-2">
-      <CountUp
-        start={0}
-        end={(totalDividendsDistributed || 0) + 1039130}
-        duration={5}
-        decimals={2}
-        decimal="."
-        suffix=" EETH"
-      />
-    </span>
+        <CountUp
+          start={0}
+          end={totalDividendsDistributed}
+          duration={5}
+          decimals={2}
+          decimal="."
+          suffix=" EETH"
+        />
+      </span>
     </div>
     
   </div>
@@ -915,11 +940,11 @@ const [nextDividendPaymentEstimate, setNextDividendPaymentEstimate] = useState(0
     <div className="absolute inset-0">
       <Bar
         data={{
-          labels: ['Jan','Feb','Mar', 'Apr', 'May', 'Jun'], // Replace with actual month labels
+          labels: ['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug','Sep','Oct','Nov'], 
           datasets: [
             {
               label: 'Total EETH Dividends',
-              data: [0, 0, 502445, 536685, 590959, 570517], // Replace with actual dividend payment data
+              data: [502445, 536685, 590959, 570517,503870,518260,546310,567450,600150], 
               backgroundColor: 'rgba(0,250,154, 1)',
               borderColor: 'rgba(75, 192, 192, 1)',
               borderWidth: 1,
@@ -1485,21 +1510,7 @@ async function fetchPendingRewards(tokenAddress: string, userAddress: string) {
   return 0;
 }
 
-async function fetchTotalDividendsDistributed(contractAddress: string): Promise<number> {
-  if (isClient) {
-    try {
-      const provider = new Web3Provider(window.ethereum);
-      const tokenContract = new Contract(contractAddress, EverETHDividendTrackerABI, provider);
-      const totalDividendsDistributed = await tokenContract.totalDividendsDistributed();
-      const formattedTotal = parseFloat(formatUnits(totalDividendsDistributed.toString(), 18));
-      return formattedTotal + 1039130; // Add 1,039,130 to the result
-    } catch (error) {
-      console.error('Error fetching total dividends distributed:', error);
-      return 0; // Return 0 if there's an error, we'll add 1,039,130 later
-    }
-  }
-  return 0; // Return 0 if not client-side, we'll add 1,039,130 later
-}
+
 
 async function fetchRewardsHistory(userAddress: string) {
   if (isClient && userAddress) {
